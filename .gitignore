@@ -1,0 +1,38 @@
+# Unreal Engine plugin-focused ignore rules
+
+# Build artifacts
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+
+# IDE / tool files
+.vs/
+.idea/
+*.VC.db
+*.VC.opendb
+*.suo
+*.user
+*.userprefs
+*.opensdf
+*.sdf
+
+# Compiled objects and debug symbols
+*.obj
+*.o
+*.pdb
+*.ipdb
+*.iobj
+*.idb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+
+# Logs and temp files
+*.log
+*.tmp
+
+# Keep source, config, plugin descriptor, and resources by default
+# (do not ignore Source/, Config/, Resources/, *.uplugin)
