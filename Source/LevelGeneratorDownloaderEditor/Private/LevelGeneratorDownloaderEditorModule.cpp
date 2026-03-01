@@ -131,20 +131,6 @@ public:
 				]
 				+ SVerticalBox::Slot()
 				.AutoHeight()
-				.Padding(8.0f, 2.0f)
-				[
-					SAssignNew(CombineMaterialsCheckBox, SCheckBox)
-					.IsChecked(ECheckBoxState::Checked)
-					.IsEnabled(false)
-					.OnCheckStateChanged(this, &SLevelGeneratorDownloaderPanel::OnCombineMaterialsCheckStateChanged)
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("CombineMaterialsLabel", "Source materials are skipped; one shared material is assigned after import"))
-						.Font(GetIosevkaFont())
-					]
-				]
-				+ SVerticalBox::Slot()
-				.AutoHeight()
 				.Padding(8.0f, 8.0f, 8.0f, 0.0f)
 				[
 					SNew(STextBlock)
@@ -160,15 +146,7 @@ public:
 					.Font(GetIosevkaFont())
 					.Text(FText::FromString(TEXT("/Game/LevelGeneratorImports")))
 				]
-				+ SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(8.0f, 0.0f)
-				[
-					SAssignNew(StatusText, STextBlock)
-					.ColorAndOpacity(FLinearColor::White)
-					.Font(GetIosevkaFont())
-					.Text(LOCTEXT("InitialStatus", "Status: Idle"))
-				]
+				// Status indicator removed per UI request
 				]
 				+ SWidgetSwitcher::Slot()
 				[
