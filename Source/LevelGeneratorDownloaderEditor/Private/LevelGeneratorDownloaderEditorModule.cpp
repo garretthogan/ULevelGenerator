@@ -6,21 +6,28 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "DesktopPlatformModule.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
 #include "Factories/MaterialInstanceConstantFactoryNew.h"
 #include "IDesktopPlatform.h"
 #include "Interfaces/IPluginManager.h"
 #include "Editor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Docking/TabManager.h"
+#include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformMisc.h"
 #include "HAL/PlatformProcess.h"
+#include "MeshMergeModule.h"
 #include "InterchangeManager.h"
 #include "InterchangeGenericAssetsPipeline.h"
 #include "InterchangeGenericMaterialPipeline.h"
 #include "InterchangeGenericMeshPipeline.h"
 #include "InterchangeSourceData.h"
+#include "LevelInstance/LevelInstanceSubsystem.h"
+#include "LevelInstance/LevelInstanceTypes.h"
 #include "LevelEditor.h"
+#include "Engine/MeshMerging.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceConstant.h"
 #include "Materials/MaterialInterface.h"
@@ -28,6 +35,7 @@
 #include "SWebBrowser.h"
 #include "Styling/AppStyle.h"
 #include "ToolMenus.h"
+#include "PropertyCustomizationHelpers.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -40,7 +48,7 @@
 
 #define LOCTEXT_NAMESPACE "FLevelGeneratorDownloaderEditorModule"
 
-const FName FLevelGeneratorDownloaderEditorModule::PluginTabName(TEXT("LevelGeneratorDownloader"));
+const FName FLevelGeneratorDownloaderEditorModule::PluginTabName(TEXT("Level Generator"));
 
 class SLevelGeneratorDownloaderPanel : public SCompoundWidget
 {
@@ -128,6 +136,57 @@ public:
 						.Text(LOCTEXT("CombineMeshesLabel", "Combine all imported meshes into a single static mesh"))
 						.Font(GetIosevkaFont())
 					]
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 6.0f, 8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("FloorMaterialLabel", "Floor Material"))
+					.Font(GetIosevkaFont())
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 3.0f)
+				[
+					SNew(SObjectPropertyEntryBox)
+					.AllowedClass(UMaterialInterface::StaticClass())
+					.ObjectPath(this, &SLevelGeneratorDownloaderPanel::GetFloorMaterialObjectPath)
+					.OnObjectChanged(this, &SLevelGeneratorDownloaderPanel::OnFloorMaterialChanged)
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 6.0f, 8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("WallMaterialLabel", "Wall Material"))
+					.Font(GetIosevkaFont())
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 3.0f)
+				[
+					SNew(SObjectPropertyEntryBox)
+					.AllowedClass(UMaterialInterface::StaticClass())
+					.ObjectPath(this, &SLevelGeneratorDownloaderPanel::GetWallMaterialObjectPath)
+					.OnObjectChanged(this, &SLevelGeneratorDownloaderPanel::OnWallMaterialChanged)
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 6.0f, 8.0f, 0.0f)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("OpeningMaterialLabel", "Openings Material"))
+					.Font(GetIosevkaFont())
+				]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(8.0f, 3.0f)
+				[
+					SNew(SObjectPropertyEntryBox)
+					.AllowedClass(UMaterialInterface::StaticClass())
+					.ObjectPath(this, &SLevelGeneratorDownloaderPanel::GetOpeningMaterialObjectPath)
+					.OnObjectChanged(this, &SLevelGeneratorDownloaderPanel::OnOpeningMaterialChanged)
 				]
 				+ SVerticalBox::Slot()
 				.AutoHeight()
@@ -258,6 +317,36 @@ private:
 		bUseSingleMaterialAsset = (NewState == ECheckBoxState::Checked);
 	}
 
+	void OnFloorMaterialChanged(const FAssetData& AssetData)
+	{
+		FloorMaterialObjectPath = AssetData.IsValid() ? AssetData.GetObjectPathString() : FString();
+	}
+
+	void OnWallMaterialChanged(const FAssetData& AssetData)
+	{
+		WallMaterialObjectPath = AssetData.IsValid() ? AssetData.GetObjectPathString() : FString();
+	}
+
+	void OnOpeningMaterialChanged(const FAssetData& AssetData)
+	{
+		OpeningMaterialObjectPath = AssetData.IsValid() ? AssetData.GetObjectPathString() : FString();
+	}
+
+	FString GetFloorMaterialObjectPath() const
+	{
+		return FloorMaterialObjectPath;
+	}
+
+	FString GetWallMaterialObjectPath() const
+	{
+		return WallMaterialObjectPath;
+	}
+
+	FString GetOpeningMaterialObjectPath() const
+	{
+		return OpeningMaterialObjectPath;
+	}
+
 	FReply OnImportLocalGlbClicked()
 	{
 		if (bIsImporting)
@@ -383,10 +472,31 @@ private:
 				TSharedPtr<SLevelGeneratorDownloaderPanel> Pinned = WeakPanel.Pin();
 				Pinned->ActiveImports.RemoveSingleSwap(ImportResultPtr);
 
-				FString PostImportStatus;
-				if (bPostImportSingleMaterial && ImportResultPtr.IsValid())
+				TArray<UObject*> ImportedObjects = ImportResultPtr.IsValid() ? ImportResultPtr->GetImportedObjects() : TArray<UObject*>();
+				FString SplitStatus;
+				if (!Pinned->bCombineStaticMeshes)
 				{
-					Pinned->ApplySingleMaterialAsset(ImportResultPtr->GetImportedObjects(), DestinationPath, PostImportStatus);
+					Pinned->CombineStructuralMeshesIfNeeded(ImportedObjects, DestinationPath, SplitStatus);
+				}
+
+				FString LevelInstanceStatus;
+				if (!Pinned->bCombineStaticMeshes)
+				{
+					Pinned->CreateLevelInstanceFromCombinedMeshes(ImportedObjects, LevelInstanceStatus);
+				}
+
+				FString PostImportStatus;
+				if (bPostImportSingleMaterial)
+				{
+					Pinned->ApplySingleMaterialAsset(ImportedObjects, DestinationPath, PostImportStatus);
+					if (!SplitStatus.IsEmpty())
+					{
+						PostImportStatus = PostImportStatus.IsEmpty() ? SplitStatus : FString::Printf(TEXT("%s %s"), *SplitStatus, *PostImportStatus);
+					}
+					if (!LevelInstanceStatus.IsEmpty())
+					{
+						PostImportStatus = PostImportStatus.IsEmpty() ? LevelInstanceStatus : FString::Printf(TEXT("%s %s"), *PostImportStatus, *LevelInstanceStatus);
+					}
 				}
 
 				if (PipelineOverride)
@@ -417,6 +527,305 @@ private:
 				Pinned->SetImportingState(false);
 			});
 		});
+	}
+
+	void CombineStructuralMeshesIfNeeded(TArray<UObject*>& InOutImportedObjects, const FString& DestinationPath, FString& OutStatus)
+	{
+		TArray<UStaticMesh*> FloorMeshes;
+		TArray<UStaticMesh*> WallMeshes;
+		TArray<UStaticMesh*> OpeningMeshes;
+
+		for (UObject* ImportedObject : InOutImportedObjects)
+		{
+			if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ImportedObject))
+			{
+				const FString MeshNameLower = StaticMesh->GetName().ToLower();
+				if (MeshNameLower.Contains(TEXT("floor")))
+				{
+					FloorMeshes.Add(StaticMesh);
+				}
+				else if (MeshNameLower.Contains(TEXT("wall")))
+				{
+					WallMeshes.Add(StaticMesh);
+				}
+				else if (MeshNameLower.Contains(TEXT("opening")))
+				{
+					OpeningMeshes.Add(StaticMesh);
+				}
+			}
+		}
+
+		if (FloorMeshes.Num() <= 1 && WallMeshes.Num() <= 1 && OpeningMeshes.Num() <= 1)
+		{
+			return;
+		}
+
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			OutStatus = TEXT("Could not merge floor/wall meshes: no editor world available.");
+			return;
+		}
+
+		auto MergeGroup = [&](const TArray<UStaticMesh*>& GroupMeshes, const FString& OutputAssetName) -> UStaticMesh*
+		{
+			if (GroupMeshes.Num() == 0)
+			{
+				return nullptr;
+			}
+
+			if (GroupMeshes.Num() == 1)
+			{
+				return GroupMeshes[0];
+			}
+
+			AActor* TempActor = World->SpawnActor<AActor>();
+			if (!TempActor)
+			{
+				return nullptr;
+			}
+
+			USceneComponent* RootComponent = NewObject<USceneComponent>(TempActor);
+			RootComponent->RegisterComponentWithWorld(World);
+			TempActor->SetRootComponent(RootComponent);
+
+			TArray<UPrimitiveComponent*> ComponentsToMerge;
+			TArray<UStaticMeshComponent*> CreatedComponents;
+			for (UStaticMesh* SourceMesh : GroupMeshes)
+			{
+				if (!SourceMesh)
+				{
+					continue;
+				}
+
+				UStaticMeshComponent* MeshComponent = NewObject<UStaticMeshComponent>(TempActor);
+				MeshComponent->SetStaticMesh(SourceMesh);
+				MeshComponent->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+				MeshComponent->RegisterComponentWithWorld(World);
+				MeshComponent->SetWorldTransform(FTransform::Identity);
+
+				CreatedComponents.Add(MeshComponent);
+				ComponentsToMerge.Add(MeshComponent);
+			}
+
+			if (ComponentsToMerge.Num() == 0)
+			{
+				TempActor->Destroy();
+				return nullptr;
+			}
+
+			FMeshMergingSettings MergeSettings;
+			MergeSettings.bMergeMaterials = false;
+			MergeSettings.bPivotPointAtZero = true;
+
+			const FString BasePackageName = DestinationPath / OutputAssetName;
+			TArray<UObject*> AssetsToSync;
+			FVector MergedActorLocation = FVector::ZeroVector;
+
+			IMeshMergeUtilities& MeshMergeUtilities = FModuleManager::LoadModuleChecked<IMeshMergeModule>(TEXT("MeshMergeUtilities")).GetUtilities();
+			MeshMergeUtilities.MergeComponentsToStaticMesh(
+				ComponentsToMerge,
+				World,
+				MergeSettings,
+				nullptr,
+				nullptr,
+				BasePackageName,
+				AssetsToSync,
+				MergedActorLocation,
+				1.0f,
+				true);
+
+			for (UStaticMeshComponent* CreatedComponent : CreatedComponents)
+			{
+				if (CreatedComponent)
+				{
+					CreatedComponent->UnregisterComponent();
+				}
+			}
+
+			TempActor->Destroy();
+
+			for (UObject* Asset : AssetsToSync)
+			{
+				if (UStaticMesh* MergedMesh = Cast<UStaticMesh>(Asset))
+				{
+					return MergedMesh;
+				}
+			}
+
+			return nullptr;
+		};
+
+		UStaticMesh* MergedFloorMesh = MergeGroup(FloorMeshes, TEXT("SM_LevelGenerator_Floor"));
+		UStaticMesh* MergedWallMesh = MergeGroup(WallMeshes, TEXT("SM_LevelGenerator_Wall"));
+		UStaticMesh* MergedOpeningMesh = MergeGroup(OpeningMeshes, TEXT("SM_LevelGenerator_Opening"));
+
+		auto MoveChildrenToSubfolder = [&](const TArray<UStaticMesh*>& GroupMeshes, UStaticMesh* MergedMesh)
+		{
+			TArray<FAssetRenameData> AssetsToRename;
+			const FString ChildrenPath = DestinationPath / TEXT("Children");
+
+			for (UStaticMesh* Mesh : GroupMeshes)
+			{
+				if (Mesh && Mesh != MergedMesh)
+				{
+					AssetsToRename.Emplace(Mesh, ChildrenPath, Mesh->GetName());
+				}
+			}
+
+			if (AssetsToRename.Num() > 0)
+			{
+				FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools"));
+				AssetToolsModule.Get().RenameAssets(AssetsToRename);
+			}
+		};
+
+		MoveChildrenToSubfolder(FloorMeshes, MergedFloorMesh);
+		MoveChildrenToSubfolder(WallMeshes, MergedWallMesh);
+		MoveChildrenToSubfolder(OpeningMeshes, MergedOpeningMesh);
+
+		InOutImportedObjects.RemoveAll([&](UObject* ImportedObject)
+		{
+			if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ImportedObject))
+			{
+				for (UStaticMesh* FloorMesh : FloorMeshes)
+				{
+					if (FloorMesh == StaticMesh && FloorMesh != MergedFloorMesh)
+					{
+						return true;
+					}
+				}
+
+				for (UStaticMesh* WallMesh : WallMeshes)
+				{
+					if (WallMesh == StaticMesh && WallMesh != MergedWallMesh)
+					{
+						return true;
+					}
+				}
+
+				for (UStaticMesh* OpeningMesh : OpeningMeshes)
+				{
+					if (OpeningMesh == StaticMesh && OpeningMesh != MergedOpeningMesh)
+					{
+						return true;
+					}
+				}
+			}
+
+			return false;
+		});
+
+		if (MergedFloorMesh && !InOutImportedObjects.Contains(MergedFloorMesh))
+		{
+			InOutImportedObjects.Add(MergedFloorMesh);
+		}
+
+		if (MergedWallMesh && !InOutImportedObjects.Contains(MergedWallMesh))
+		{
+			InOutImportedObjects.Add(MergedWallMesh);
+		}
+
+		if (MergedOpeningMesh && !InOutImportedObjects.Contains(MergedOpeningMesh))
+		{
+			InOutImportedObjects.Add(MergedOpeningMesh);
+		}
+
+		OutStatus = TEXT("Merged floor/wall/opening groups into top-level meshes and moved source pieces to /Children.");
+	}
+
+	void CreateLevelInstanceFromCombinedMeshes(const TArray<UObject*>& ImportedObjects, FString& OutStatus)
+	{
+		UStaticMesh* FloorMesh = nullptr;
+		UStaticMesh* WallMesh = nullptr;
+		UStaticMesh* OpeningMesh = nullptr;
+		for (UObject* ImportedObject : ImportedObjects)
+		{
+			if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(ImportedObject))
+			{
+				const FString NameLower = StaticMesh->GetName().ToLower();
+				if (!FloorMesh && NameLower.Contains(TEXT("floor")))
+				{
+					FloorMesh = StaticMesh;
+				}
+				else if (!WallMesh && NameLower.Contains(TEXT("wall")))
+				{
+					WallMesh = StaticMesh;
+				}
+				else if (!OpeningMesh && NameLower.Contains(TEXT("opening")))
+				{
+					OpeningMesh = StaticMesh;
+				}
+			}
+		}
+
+		if (!FloorMesh && !WallMesh && !OpeningMesh)
+		{
+			return;
+		}
+
+		UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+		if (!World)
+		{
+			OutStatus = TEXT("Could not create level instance: no editor world available.");
+			return;
+		}
+
+		TArray<AActor*> ActorsToMove;
+		auto SpawnMeshActorAtOrigin = [&](UStaticMesh* Mesh, const TCHAR* Label)
+		{
+			if (!Mesh)
+			{
+				return;
+			}
+
+			AStaticMeshActor* MeshActor = World->SpawnActor<AStaticMeshActor>();
+			if (!MeshActor)
+			{
+				return;
+			}
+
+			MeshActor->SetActorLabel(Label);
+			MeshActor->SetActorTransform(FTransform::Identity);
+			if (UStaticMeshComponent* StaticMeshComponent = MeshActor->GetStaticMeshComponent())
+			{
+				StaticMeshComponent->SetStaticMesh(Mesh);
+			}
+
+			ActorsToMove.Add(MeshActor);
+		};
+
+		SpawnMeshActorAtOrigin(FloorMesh, TEXT("LG_Floor"));
+		SpawnMeshActorAtOrigin(WallMesh, TEXT("LG_Wall"));
+		SpawnMeshActorAtOrigin(OpeningMesh, TEXT("LG_Opening"));
+
+		if (ActorsToMove.Num() == 0)
+		{
+			OutStatus = TEXT("Could not create level instance actors.");
+			return;
+		}
+
+		ULevelInstanceSubsystem* LevelInstanceSubsystem = World->GetSubsystem<ULevelInstanceSubsystem>();
+		if (!LevelInstanceSubsystem)
+		{
+			OutStatus = TEXT("LevelInstanceSubsystem is unavailable.");
+			return;
+		}
+
+		FNewLevelInstanceParams CreationParams;
+		CreationParams.bAlwaysShowDialog = true;
+		CreationParams.bPromptForSave = true;
+		CreationParams.PivotType = ELevelInstancePivotType::WorldOrigin;
+
+		ILevelInstanceInterface* NewLevelInstance = LevelInstanceSubsystem->CreateLevelInstanceFrom(ActorsToMove, CreationParams);
+		if (NewLevelInstance)
+		{
+			OutStatus = TEXT("Created level instance.");
+		}
+		else
+		{
+			OutStatus = TEXT("Failed to create level instance.");
+		}
 	}
 
 	EActiveTimerReturnType OnAutoImportTick(double InCurrentTime, float InDeltaTime)
@@ -621,6 +1030,24 @@ private:
 	{
 		TArray<UStaticMesh*> ImportedStaticMeshes;
 		UMaterialInterface* ParentMaterial = nullptr;
+		UMaterialInterface* FloorOverrideMaterial = nullptr;
+		UMaterialInterface* WallOverrideMaterial = nullptr;
+		UMaterialInterface* OpeningOverrideMaterial = nullptr;
+
+		if (!FloorMaterialObjectPath.IsEmpty())
+		{
+			FloorOverrideMaterial = LoadObject<UMaterialInterface>(nullptr, *FloorMaterialObjectPath);
+		}
+
+		if (!WallMaterialObjectPath.IsEmpty())
+		{
+			WallOverrideMaterial = LoadObject<UMaterialInterface>(nullptr, *WallMaterialObjectPath);
+		}
+
+		if (!OpeningMaterialObjectPath.IsEmpty())
+		{
+			OpeningOverrideMaterial = LoadObject<UMaterialInterface>(nullptr, *OpeningMaterialObjectPath);
+		}
 
 		for (UObject* ImportedObject : ImportedObjects)
 		{
@@ -711,10 +1138,25 @@ private:
 				continue;
 			}
 
+			UMaterialInterface* MaterialForMesh = SharedMaterial;
+			const FString MeshNameLower = StaticMesh->GetName().ToLower();
+			if (MeshNameLower.Contains(TEXT("floor")) && FloorOverrideMaterial)
+			{
+				MaterialForMesh = FloorOverrideMaterial;
+			}
+			else if (MeshNameLower.Contains(TEXT("wall")) && WallOverrideMaterial)
+			{
+				MaterialForMesh = WallOverrideMaterial;
+			}
+			else if (MeshNameLower.Contains(TEXT("opening")) && OpeningOverrideMaterial)
+			{
+				MaterialForMesh = OpeningOverrideMaterial;
+			}
+
 			const int32 MaterialSlotCount = StaticMesh->GetStaticMaterials().Num();
 			for (int32 SlotIndex = 0; SlotIndex < MaterialSlotCount; ++SlotIndex)
 			{
-				StaticMesh->SetMaterial(SlotIndex, SharedMaterial);
+				StaticMesh->SetMaterial(SlotIndex, MaterialForMesh);
 			}
 
 			StaticMesh->PostEditChange();
@@ -746,6 +1188,9 @@ private:
 	bool bIsDownloading = false;
 	bool bIsImporting = false;
 	bool bShowSuccessIndicator = false;
+	FString FloorMaterialObjectPath;
+	FString WallMaterialObjectPath;
+	FString OpeningMaterialObjectPath;
 	FDateTime AutoImportEnabledUtc = FDateTime::MinValue();
 	TMap<FString, int64> PendingDownloadSizes;
 	TMap<FString, FDateTime> KnownDownloadTimestamps;

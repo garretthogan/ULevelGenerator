@@ -28,6 +28,8 @@ public class LevelGeneratorDownloaderEditor : ModuleRules
 				"InterchangeEngine",
 				"InterchangePipelines",
 				"LevelEditor",
+				"MeshMergeUtilities",
+				"PropertyEditor",
 				"Projects",
 				"ToolMenus",
 				"UnrealEd",
