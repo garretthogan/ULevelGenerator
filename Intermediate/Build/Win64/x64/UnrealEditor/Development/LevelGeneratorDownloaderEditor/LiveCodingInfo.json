@@ -1,0 +1,9 @@
+{
+	"RemapUnityFiles": 
+	{
+		"Module.LevelGeneratorDownloaderEditor.cpp.obj": [
+			"PerModuleInline.gen.cpp.obj",
+			"LevelGeneratorDownloaderEditorModule.cpp.obj"
+		]
+	}
+}

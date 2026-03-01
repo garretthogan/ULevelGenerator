@@ -1,0 +1,13 @@
+/NOLOGO
+/errorReport:prompt
+/MACHINE:x64
+/SUBSYSTEM:WINDOWS
+/DEF
+/NAME:"UnrealEditor-LevelGeneratorDownloaderEditor.dll"
+/IGNORE:4221
+/NODEFAULTLIB
+"D:/workspace/EnhancedActionFPS/Intermediate/Build/Win64/x64/EnhancedActionFPSEditor/Development/UnrealEd/SharedPCH.UnrealEd.Project.ValApi.ValExpApi.Cpp20.InclOrderUnreal5_4.h.obj"
+"D:/workspace/EnhancedActionFPS/Plugins/LevelGeneratorDownloader/Intermediate/Build/Win64/x64/UnrealEditor/Development/LevelGeneratorDownloaderEditor/Module.LevelGeneratorDownloaderEditor.cpp.obj"
+"D:/workspace/EnhancedActionFPS/Plugins/LevelGeneratorDownloader/Intermediate/Build/Win64/x64/UnrealEditor/Development/LevelGeneratorDownloaderEditor/LevelGeneratorDownloaderEditorModule.cpp.obj"
+"D:/workspace/EnhancedActionFPS/Plugins/LevelGeneratorDownloader/Intermediate/Build/Win64/x64/UnrealEditor/Development/LevelGeneratorDownloaderEditor/Default.rc2.res"
+/OUT:"D:/workspace/EnhancedActionFPS/Plugins/LevelGeneratorDownloader/Intermediate/Build/Win64/x64/UnrealEditor/Development/LevelGeneratorDownloaderEditor/UnrealEditor-LevelGeneratorDownloaderEditor.lib"

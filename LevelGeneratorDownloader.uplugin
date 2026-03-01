@@ -1,0 +1,25 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0.0",
+  "FriendlyName": "Level Generator Downloader",
+  "Description": "Editor plugin for downloading GLB files from the garretthogan level-generator web app and importing them into the project.",
+  "Category": "Importers",
+  "CreatedBy": "GitHub Copilot",
+  "CanContainContent": false,
+  "IsBetaVersion": false,
+  "Installed": false,
+  "Plugins": [
+    {
+      "Name": "WebBrowserWidget",
+      "Enabled": true
+    }
+  ],
+  "Modules": [
+    {
+      "Name": "LevelGeneratorDownloaderEditor",
+      "Type": "Editor",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

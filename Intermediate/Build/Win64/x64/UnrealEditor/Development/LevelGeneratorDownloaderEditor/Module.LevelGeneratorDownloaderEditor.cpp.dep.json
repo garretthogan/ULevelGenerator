@@ -1,0 +1,15 @@
+{
+    "Version": "1.2",
+    "Data": {
+        "Source": "d:\\workspace\\enhancedactionfps\\plugins\\levelgeneratordownloader\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\levelgeneratordownloadereditor\\module.levelgeneratordownloadereditor.cpp",
+        "ProvidedModule": "",
+        "PCH": "d:\\workspace\\enhancedactionfps\\intermediate\\build\\win64\\x64\\enhancedactionfpseditor\\development\\unrealed\\sharedpch.unrealed.project.valapi.valexpapi.cpp20.inclorderunreal5_4.h.pch",
+        "Includes": [
+            "d:\\workspace\\enhancedactionfps\\plugins\\levelgeneratordownloader\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\levelgeneratordownloadereditor\\definitions.levelgeneratordownloadereditor.h",
+            "d:\\workspace\\enhancedactionfps\\plugins\\levelgeneratordownloader\\intermediate\\build\\win64\\x64\\unrealeditor\\development\\levelgeneratordownloadereditor\\permoduleinline.gen.cpp",
+            "d:\\epic games\\ue_5.7\\engine\\source\\runtime\\core\\public\\hal\\permoduleinline.inl"
+        ],
+        "ImportedModules": [],
+        "ImportedHeaderUnits": []
+    }
+}
